@@ -1,0 +1,9 @@
+[Unit]
+Description=hddmon — SMART-снимок всех дисков
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=PYTHONPATH=/home/biggriz/vibecod/hddmon
+ExecStart=/usr/bin/python3 -m hddmon --db /var/lib/hddmon/hddmon.db collect

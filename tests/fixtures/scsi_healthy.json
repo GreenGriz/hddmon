@@ -1,0 +1,63 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {
+    "version": [7, 3],
+    "exit_status": 0
+  },
+  "device": {
+    "name": "/dev/sdc",
+    "info_name": "/dev/sdc",
+    "type": "scsi",
+    "protocol": "SCSI"
+  },
+  "vendor": "HITACHI",
+  "product": "HDS723020BLA642",
+  "model_name": "HDS723020BLA642",
+  "serial_number": "MN1220F32JARWD",
+  "user_capacity": {
+    "blocks": 3907029168,
+    "bytes": 2000398934016
+  },
+  "smart_status": {
+    "passed": true
+  },
+  "scsi": {
+    "vendor": "HITACHI",
+    "product": "HDS723020BLA642",
+    "revision": "A7EA",
+    "protection_type": 0,
+    "temp": 36,
+    "started": 1,
+    "power_on_seconds": 66264000,
+    "grown_defects": 0,
+    "temperature": {
+      "current": 36
+    },
+    "start_stop_cycle_counter": {
+      "value": 4210
+    },
+    "power_on_hours": {
+      "value": 18406
+    },
+    "read_errors": {
+      "corrected_by_ecc_full": 0,
+      "corrected_by_ecc_partial": 0,
+      "total_errors": 0
+    },
+    "write_errors": {
+      "corrected_by_ecc_full": 0,
+      "corrected_by_ecc_partial": 0,
+      "total_errors": 0
+    },
+    "verify_errors": {
+      "total_errors": 0
+    },
+    "self_test": {
+      "status": {
+        "value": 1,
+        "string": "completed without error",
+        "passed": true
+      }
+    }
+  }
+}

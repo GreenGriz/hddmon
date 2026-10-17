@@ -1,0 +1,36 @@
+# Пример конфига hddmon — скопируй в ~/.config/hddmon/config.toml
+# или /etc/hddmon/config.toml и отредактируй.
+
+# Путь к БД; пусто = ~/.local/share/hddmon/hddmon.db (или /var/lib/hddmon/hddmon.db под root)
+# db_path = "/var/lib/hddmon/hddmon.db"
+
+# Хранить полный raw JSON smartctl (опционально, +~25 МБ/год)
+store_raw_json = false
+
+# Использовать sudo -n для smartctl, если не root
+use_sudo = true
+
+[thresholds]
+temp_warning = 45
+temp_critical = 55
+power_on_hours_watch = 43200   # 5 лет
+load_cycle_watch = 600000
+pending_backup_now = 10
+reallocated_watch = 1
+reallocated_backup_now = 20
+uncorrectable_backup_now = 5
+
+[telegram]
+enabled = false
+# token = "123456:ABC-..."
+# chat_id = "-1001234567890"
+
+[email]
+enabled = false
+smtp_host = "smtp.example.com"
+smtp_port = 587
+starttls = true
+# username = "user@example.com"
+# password = "..."
+from_addr = "hddmon@example.com"
+to_addrs = ["admin@example.com"]

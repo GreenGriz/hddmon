@@ -1,0 +1,54 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {
+    "version": [7, 3],
+    "exit_status": 64
+  },
+  "device": {
+    "name": "/dev/sdb",
+    "info_name": "/dev/sdb",
+    "type": "sat",
+    "protocol": "ATA"
+  },
+  "model_name": "ST1000NM0033-9ZM173",
+  "serial_number": "Z1W6366E",
+  "user_capacity": {
+    "blocks": 1953525168,
+    "bytes": 1000204886016
+  },
+  "smart_status": {
+    "passed": false
+  },
+  "temperature": {
+    "current": 42
+  },
+  "power_on_time": {
+    "hours": 45000,
+    "minutes": 12
+  },
+  "ata_smart_data": {
+    "self_test": {
+      "status": {
+        "value": 1,
+        "string": "Completed with error: read element failure",
+        "passed": false
+      }
+    }
+  },
+  "ata_smart_attributes": {
+    "revision": 1,
+    "table": [
+      {"id": 1, "name": "Raw_Read_Error_Rate", "value": 100, "worst": 100, "raw": {"value": 128967, "string": "128967"}},
+      {"id": 5, "name": "Reallocated_Sector_Ct", "value": 138, "worst": 138, "raw": {"value": 24, "string": "24"}},
+      {"id": 9, "name": "Power_On_Hours", "value": 62, "worst": 62, "raw": {"value": 45000, "string": "45000"}},
+      {"id": 12, "name": "Power_Cycle_Count", "value": 97, "worst": 97, "raw": {"value": 412, "string": "412"}},
+      {"id": 184, "name": "End-to-End_Error", "value": 200, "worst": 200, "raw": {"value": 0, "string": "0"}},
+      {"id": 187, "name": "Reported_Uncorrect", "value": 150, "worst": 150, "raw": {"value": 12, "string": "12"}},
+      {"id": 188, "name": "Command_Timeout", "value": 200, "worst": 200, "raw": {"value": 0, "string": "0"}},
+      {"id": 193, "name": "Load_Cycle_Count", "value": 85, "worst": 85, "raw": {"value": 512300, "string": "512300"}},
+      {"id": 194, "name": "Temperature_Celsius", "value": 105, "worst": 100, "raw": {"value": 42, "string": "42 (Min/Max 21/51)"}},
+      {"id": 197, "name": "Current_Pending_Sector", "value": 140, "worst": 140, "raw": {"value": 8, "string": "8"}},
+      {"id": 198, "name": "Offline_Uncorrectable", "value": 150, "worst": 150, "raw": {"value": 3, "string": "3"}}
+    ]
+  }
+}
