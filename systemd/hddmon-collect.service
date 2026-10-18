@@ -5,5 +5,10 @@ After=local-fs.target
 [Service]
 Type=oneshot
 User=root
+Group=biggriz
+StateDirectory=hddmon
+StateDirectoryMode=0775
+UMask=0002
 Environment=PYTHONPATH=/home/biggriz/vibecod/hddmon
 ExecStart=/usr/bin/python3 -m hddmon --db /var/lib/hddmon/hddmon.db collect
+SuccessExitStatus=10 20 30 40

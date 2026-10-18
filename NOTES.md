@@ -4,9 +4,20 @@
 Проект: `/home/biggriz/vibecod/hddmon`.
 Основные документы: `SPEC.md`, `NOTES.md`.
 
+## Обновление 2026-10-18 (вечер) — установка завершена
+
+- БД перенесена в `/var/lib/hddmon/hddmon.db`, история цела (снимки 16.10 и 18.10). Резервная копия — `~/.local/share/hddmon/hddmon.db`.
+- Юниты установлены в `/etc/systemd/system/`; таймер `hddmon-collect.timer` включён (ежедневно ~00:00 + случайный разброс до 1ч, `Persistent=true`).
+- Права для общей БД (root-сервис + CLI пользователя): `/var/lib/hddmon` → `root:biggriz 0775`, БД → `root:biggriz 0664`; в юните `Group=biggriz`, `StateDirectoryMode=0775`, `UMask=0002` (WAL требует запись). Без этого `python3 -m hddmon status` падал с `readonly database`.
+- `SuccessExitStatus=10 20 30 40` в юните: `collect` возвращает код худшего вердикта (WATCH=10, BACKUP_SOON=20, BACKUP_NOW=30, REPLACE_NOW=40) — для systemd это не сбой.
+- Проверено: `python3 -m hddmon status` без `--db` видит свежие данные из `/var/lib/hddmon`.
+- Изменения юнита и NOTES.md **не закоммичены** (в git — только `Initial commit`).
+
+Дальше: копить снимки (2-3 дня), затем проверить дельты/прогноз (`history`, `predict`, `report`) на реальных данных.
+
 ## Где остановились (конец дня 2026-10-16)
 
-Реальный снимок **работает**. Sudoers настроен. Осталось поставить systemd и перенести БД.
+Реальный снимок **работает**. Sudoers настроен. systemd установлен и БД перенесена — см. «Обновление 2026-10-18» выше.
 
 ### Сделано сегодня (кроме готового v0.1)
 
@@ -35,12 +46,12 @@
    ```
    Причина: root не видит `~/.local/bin` и `~/.local/share` пользователя → используем `python3 -m` + PYTHONPATH + общий путь БД `/var/lib/hddmon/hddmon.db`.
 
-### TODO (с этого начать завтра)
+### TODO (выполнено 2026-10-18)
 
-- [ ] Выполнить установку systemd (команды ниже).
-- [ ] Перенести/создать БД в `/var/lib/hddmon/hddmon.db` (см. ниже), чтобы root и пользователь работали с одной БД.
-- [ ] Проверить `systemctl list-timers hddmon-collect.timer`, ручной `sudo systemctl start hddmon-collect.service`, `journalctl -u hddmon-collect.service`.
-- [ ] Проверить, что `python3 -m hddmon status` (без --db) подхватывает `/etc/hddmon/config.toml` и видит данные из `/var/lib/...`.
+- [x] Выполнить установку systemd (команды ниже).
+- [x] Перенести/создать БД в `/var/lib/hddmon/hddmon.db`, чтобы root и пользователь работали с одной БД.
+- [x] Проверить `systemctl list-timers hddmon-collect.timer`, ручной `sudo systemctl start hddmon-collect.service`, `journalctl -u hddmon-collect.service`.
+- [x] Проверить, что `python3 -m hddmon status` (без --db) подхватывает `/etc/hddmon/config.toml` и видит данные из `/var/lib/...`.
 - [ ] При желании: `pip install --user -e .` для команды `hddmon` без `python3 -m`.
 
 ### Команды для установки systemd (от пользователя, sudo)
@@ -90,16 +101,15 @@ python3 -m hddmon devices
 - Вердикты OK/WATCH/BACKUP_SOON/BACKUP_NOW/REPLACE_NOW + дельты + события.
 - Прогноз: линейная регрессия критичных атрибутов → ETA.
 - Уведомления: Telegram + email (опционально, из конфига).
-- Systemd: юниты готовы (см. выше), **на машину не установлены**.
+- Systemd: юниты установлены, таймер активен (2026-10-18).
 - Пример конфига: `config.example.toml`.
 - Тесты: 26 шт (`tests/`), все проходят: `python3 -m unittest discover -s tests`.
 - Реальный прогон от `biggriz` через sudoers — работает.
 
 Не сделано:
-- Установка systemd на машину (команды выше).
-- Перенос БД в `/var/lib/hddmon`.
 - Веб-интерфейс (отложен по решению).
 - Наработка истории для дельт/прогноза (нужен не первый день).
+- Коммит изменений юнита/заметок в git.
 
 ## Ключевой момент по доступу
 
@@ -146,6 +156,6 @@ python3 -m hddmon devices
 8. ~~Уведомления Telegram/email.~~ ✔
 9. ~~Прогноз (регрессия/ETA).~~ ✔
 10. ~~Sudoers + реальный прогон.~~ ✔
-11. ~~Установить systemd на машину.~~ — команды готовы, **выполнить**.
-12. ~~Перенести БД в /var/lib/hddmon.~~ — **выполнить**.
+11. ~~Установить systemd на машину.~~ ✔ 2026-10-18.
+12. ~~Перенести БД в /var/lib/hddmon.~~ ✔ 2026-10-18.
 13. Накопить историю (несколько дней collect), проверить дельты/прогноз на реальных данных.
