@@ -6,11 +6,29 @@ build-backend = "setuptools.build_meta"
 name = "hddmon"
 version = "0.2.0"
 description = "Мониторинг и прогноз состояния HDD по SMART"
+readme = "README.md"
 requires-python = ">=3.11"
+authors = [{ name = "GreenGriz" }]
+keywords = ["smart", "hdd", "ssd", "smartctl", "monitoring", "disk-health"]
+classifiers = [
+    "Environment :: Console",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Hardware",
+    "Topic :: System :: Monitoring",
+]
 dependencies = []
 
 [project.scripts]
 hddmon = "hddmon.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/GreenGriz/hddmon"
+Repository = "https://github.com/GreenGriz/hddmon"
+Issues = "https://github.com/GreenGriz/hddmon/issues"
 
 [tool.setuptools.packages.find]
 include = ["hddmon*"]

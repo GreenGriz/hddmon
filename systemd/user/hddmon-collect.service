@@ -1,0 +1,10 @@
+[Unit]
+Description=hddmon — SMART-снимок всех дисков
+After=default.target
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=%h/.local/bin/hddmon collect
+SuccessExitStatus=10 20 30 40
+TimeoutStartSec=10min

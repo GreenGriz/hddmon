@@ -11,7 +11,7 @@
 - Права для общей БД (root-сервис + CLI пользователя): `/var/lib/hddmon` → `root:biggriz 0775`, БД → `root:biggriz 0664`; в юните `Group=biggriz`, `StateDirectoryMode=0775`, `UMask=0002` (WAL требует запись). Без этого `python3 -m hddmon status` падал с `readonly database`.
 - `SuccessExitStatus=10 20 30 40` в юните: `collect` возвращает код худшего вердикта (WATCH=10, BACKUP_SOON=20, BACKUP_NOW=30, REPLACE_NOW=40) — для systemd это не сбой.
 - Проверено: `python3 -m hddmon status` без `--db` видит свежие данные из `/var/lib/hddmon`.
-- Изменения юнита и NOTES.md **не закоммичены** (в git — только `Initial commit`).
+- Изменения юнита и NOTES.md закоммичены и запушены в v0.2 (`7e10b8a`).
 
 Дальше: копить снимки (2-3 дня), затем проверить дельты/прогноз (`history`, `predict`, `report`) на реальных данных.
 
@@ -109,7 +109,6 @@ python3 -m hddmon devices
 Не сделано:
 - Веб-интерфейс (отложен по решению).
 - Наработка истории для дельт/прогноза (нужен не первый день).
-- Коммит изменений юнита/заметок в git.
 
 ## Ключевой момент по доступу
 
@@ -214,3 +213,11 @@ python3 -m hddmon devices
 Тесты: 41/41 (`python3 -m unittest discover -s tests`). Обновлённый unit установлен в `/etc/systemd/system` (2026-10-19), сервис проверен ручным запуском — снимок добавился. Команда `hddmon` доступна через `pip install --user -e .`; `~/.local/bin` добавлен в `PATH` в `~/.bashrc`.
 
 Из ревью остались мелочи: ретенция raw_json (90 дней), предупреждения о неизвестных ключах конфига, покрытие `notify` тестами, пересмотр схемы «root-сервис + общая БД в /var/lib».
+
+## Публикация для внешних пользователей (2026-10-19)
+
+- Добавлен `README.md`: установка через pipx / venv / `pip --user` прямо с GitHub, настройка sudoers, первый запуск, конфиг, systemd, команды, exit-коды, troubleshooting.
+- `pyproject.toml`: добавлены `readme`, authors, keywords, classifiers, project URLs. Установка из чистого venv проверена (`pip install .` → `hddmon --version` = 0.2.0).
+- Добавлены переносимые user-юниты `systemd/user/hddmon-collect.{service,timer}` (`%h/.local/bin/hddmon`, PATH с `/usr/sbin`, `TimeoutStartSec=10min`); проверены `systemd-analyze verify`.
+- Лицензия по решению владельца не выбрана.
+- Изменения (README, pyproject, user-юниты, этот раздел) ещё не закоммичены.
