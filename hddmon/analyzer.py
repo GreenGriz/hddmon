@@ -89,11 +89,17 @@ def analyze(snap: Snapshot, prev_row: Any, th: Thresholds, device_id: int | None
             bump(Verdict.BACKUP_SOON, 25, f"uncorrectable={snap.uncorrectable}")
         if deltas.get("uncorrectable", 0) > 0:
             bump(Verdict.BACKUP_NOW, 25, f"uncorrectable растёт: +{deltas['uncorrectable']}")
+            events.append(Event(device_id, "attr_growth", "critical",
+                                f"{snap.device.dev_node}: uncorrectable +{deltas['uncorrectable']} "
+                                f"(итого {snap.uncorrectable})"))
 
     if snap.reported_uncorrect is not None and snap.reported_uncorrect > 0:
         bump(Verdict.BACKUP_SOON, 15, f"reported_uncorrect={snap.reported_uncorrect}")
         if deltas.get("reported_uncorrect", 0) > 0:
             bump(Verdict.BACKUP_NOW, 20, f"reported_uncorrect растёт: +{deltas['reported_uncorrect']}")
+            events.append(Event(device_id, "attr_growth", "critical",
+                                f"{snap.device.dev_node}: reported_uncorrect "
+                                f"+{deltas['reported_uncorrect']} (итого {snap.reported_uncorrect})"))
 
     if snap.grown_defects is not None and snap.grown_defects > 0:
         if Verdict.BACKUP_SOON > verdict:

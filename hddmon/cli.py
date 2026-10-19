@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -21,6 +22,18 @@ def _fmt_eta(days: float | None, when: datetime | None) -> str:
     if days is None or when is None:
         return "—"
     return f"~{int(days)}d ({when.date().isoformat()})"
+
+
+def _fmt_time(value: Any) -> str:
+    if not value:
+        return "-"
+    try:
+        dt = datetime.fromisoformat(str(value))
+    except ValueError:
+        return str(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone().strftime("%Y-%m-%d %H:%M %Z")
 
 
 def _snap_from_row(row: Any) -> Snapshot:
@@ -53,14 +66,23 @@ def _snap_from_row(row: Any) -> Snapshot:
 
 def cmd_collect(cfg: Config, args: argparse.Namespace) -> int:
     conn = store.connect(cfg.db_path)
-    raws, errors = collector.collect_all(cfg)
+    raws, errors, discovered = collector.collect_all(cfg)
+    readable = {r.dev_node for r in raws}
+    unreadable = [node for node in discovered if node not in readable]
     seen_ids: list[int] = []
     all_events: list[Event] = []
     results = []
 
     for raw in raws:
         snap = normalizer.normalize(raw, store_raw=cfg.store_raw_json or args.store_raw)
+        serial = snap.device.serial or f"node:{snap.device.dev_node}"
+        is_new = store.device_id_by_serial(conn, serial) is None
         device_id = store.upsert_device(conn, snap)
+        if is_new:
+            all_events.append(Event(
+                device_id, "device_new", "info",
+                f"{snap.device.dev_node} ({snap.device.serial or '?'}): новый диск",
+            ))
         seen_ids.append(device_id)
         prev = store.get_last_snapshot(conn, device_id)
         analysis = analyzer.analyze(snap, prev, cfg.thresholds, device_id)
@@ -69,14 +91,16 @@ def cmd_collect(cfg: Config, args: argparse.Namespace) -> int:
         all_events.extend(analysis.events)
         results.append((snap, analysis))
 
-    for m in store.mark_missing(conn, seen_ids):
-        ev = Event(m["id"], "device_missing", "warning", f"{m['dev_node']} ({m['serial']}): диск исчез")
-        store.insert_event(conn, ev)
-        all_events.append(ev)
+    for m in store.mark_missing(conn, seen_ids, unreadable):
+        all_events.append(Event(
+            m["id"], "device_missing", "warning",
+            f"{m['dev_node']} ({m['serial']}): диск исчез",
+        ))
 
     for ev in all_events:
         store.insert_event(conn, ev)
     conn.commit()
+    conn.close()
 
     if args.json:
         out = [
@@ -113,7 +137,7 @@ def cmd_collect(cfg: Config, args: argparse.Namespace) -> int:
 
 
 def cmd_status(cfg: Config, args: argparse.Namespace) -> int:
-    conn = store.connect(cfg.db_path)
+    conn = store.connect(cfg.db_path, read_only=True)
     rows = store.latest_snapshots(conn)
     if args.json:
         out = []
@@ -145,7 +169,7 @@ def cmd_status(cfg: Config, args: argparse.Namespace) -> int:
             flag = "" if r["present"] else " [MISSING]"
             print(f"{r['dev_node']:8} {r['verdict'] or '?':12} score={_fmt(r['score']):3}{flag}  "
                   f"{r['model'] or '?'}  serial={_fmt(r['serial'])}")
-            print(f"         taken={r['taken_at']}  temp={_fmt(r['temperature'])}C  "
+            print(f"         taken={_fmt_time(r['taken_at'])}  temp={_fmt(r['temperature'])}C  "
                   f"poh={_fmt(r['power_on_hours'])}  realloc={_fmt(r['reallocated'])}  "
                   f"pending={_fmt(r['pending'])}  uncorr={_fmt(r['uncorrectable'])}")
             for reason in analyzer.reasons_from_row(r):
@@ -170,7 +194,7 @@ def _resolve_device(conn: Any, ref: str):
 
 
 def cmd_history(cfg: Config, args: argparse.Namespace) -> int:
-    conn = store.connect(cfg.db_path)
+    conn = store.connect(cfg.db_path, read_only=True)
     dev = _resolve_device(conn, args.device)
     if not dev:
         return 1
@@ -184,10 +208,10 @@ def cmd_history(cfg: Config, args: argparse.Namespace) -> int:
         print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
         return 0
     print(f"{dev['dev_node']} ({dev['serial']}): {len(rows)} снимков")
-    print(f"{'taken_at':25} {'verdict':12} {'score':>5} {'temp':>5} {'poh':>8} "
+    print(f"{'taken_at':21} {'verdict':12} {'score':>5} {'temp':>5} {'poh':>8} "
           f"{'realloc':>8} {'pend':>6} {'uncorr':>7} {'runc':>6} {'selftest'}")
     for r in rows:
-        print(f"{r['taken_at']:25} {r['verdict'] or '?':12} {_fmt(r['score']):>5} "
+        print(f"{_fmt_time(r['taken_at']):21} {r['verdict'] or '?':12} {_fmt(r['score']):>5} "
               f"{_fmt(r['temperature']):>5} {_fmt(r['power_on_hours']):>8} "
               f"{_fmt(r['reallocated']):>8} {_fmt(r['pending']):>6} "
               f"{_fmt(r['uncorrectable']):>7} {_fmt(r['reported_uncorrect']):>6} "
@@ -196,7 +220,8 @@ def cmd_history(cfg: Config, args: argparse.Namespace) -> int:
 
 
 def cmd_predict(cfg: Config, args: argparse.Namespace) -> int:
-    conn = store.connect(cfg.db_path)
+    conn = store.connect(cfg.db_path, read_only=True)
+    targets = forecast.targets_from_thresholds(cfg.thresholds)
     devices = store.list_devices(conn, present_only=True)
     out_all = []
     worst = Verdict.OK
@@ -206,7 +231,7 @@ def cmd_predict(cfg: Config, args: argparse.Namespace) -> int:
             s = store.critical_series(conn, dev["id"], col)
             if s:
                 series[col] = s
-        trends = forecast.predict_device(series)
+        trends = forecast.predict_device(series, targets=targets)
         last = store.get_last_snapshot(conn, dev["id"])
         if last:
             try:
@@ -219,10 +244,14 @@ def cmd_predict(cfg: Config, args: argparse.Namespace) -> int:
         if not args.json:
             print(f"{dev['dev_node']} ({dev['serial']}):")
             if not trends:
-                print("  нет данных для прогноза (нужно >=3 снимков с ростом атрибутов)")
+                if any(len(s) >= 3 for s in series.values()):
+                    print("  нет роста критичных атрибутов")
+                else:
+                    print("  мало снимков для прогноза (нужно >=3)")
             for t in trends:
                 print(f"  {t.column}: {t.current}, скорость {t.slope_per_day:+.4f}/дн, "
-                      f"цель {t.r_threshold}, ETA {_fmt_eta(t.eta_days, t.eta_date)}")
+                      f"r²={t.r2:.2f}, цель {_fmt(t.r_threshold)}, "
+                      f"ETA {_fmt_eta(t.eta_days, t.eta_date)}")
     if args.json:
         payload = [
             {
@@ -233,6 +262,7 @@ def cmd_predict(cfg: Config, args: argparse.Namespace) -> int:
                         "column": t.column,
                         "current": t.current,
                         "slope_per_day": t.slope_per_day,
+                        "r2": t.r2,
                         "target": t.r_threshold,
                         "eta_days": t.eta_days,
                         "eta_date": iso(t.eta_date) if t.eta_date else None,
@@ -247,7 +277,8 @@ def cmd_predict(cfg: Config, args: argparse.Namespace) -> int:
 
 
 def cmd_report(cfg: Config, args: argparse.Namespace) -> int:
-    conn = store.connect(cfg.db_path)
+    conn = store.connect(cfg.db_path, read_only=True)
+    targets = forecast.targets_from_thresholds(cfg.thresholds)
     rows = store.latest_snapshots(conn)
     events = store.recent_events(conn, limit=20)
     worst = Verdict.OK
@@ -266,7 +297,7 @@ def cmd_report(cfg: Config, args: argparse.Namespace) -> int:
                 s = store.critical_series(conn, dev["id"], col)
                 if s:
                     series[col] = s
-        trends = forecast.predict_device(series) if series else []
+        trends = forecast.predict_device(series, targets=targets) if series else []
         devices_out.append({"row": r, "trends": trends})
 
     if args.json:
@@ -295,6 +326,8 @@ def cmd_report(cfg: Config, args: argparse.Namespace) -> int:
                             "column": t.column,
                             "current": t.current,
                             "slope_per_day": t.slope_per_day,
+                            "r2": t.r2,
+                            "target": t.r_threshold,
                             "eta_days": t.eta_days,
                         }
                         for t in d["trends"]
@@ -311,7 +344,7 @@ def cmd_report(cfg: Config, args: argparse.Namespace) -> int:
             r = d["row"]
             flag = "" if r["present"] else " [MISSING]"
             print(f"\n{r['dev_node']}  {r['model']}  serial={_fmt(r['serial'])}{flag}")
-            print(f"  вердикт: {r['verdict']} (score={_fmt(r['score'])})  taken={r['taken_at']}")
+            print(f"  вердикт: {r['verdict']} (score={_fmt(r['score'])})  taken={_fmt_time(r['taken_at'])}")
             print(f"  temp={_fmt(r['temperature'])}C  poh={_fmt(r['power_on_hours'])}  "
                   f"realloc={_fmt(r['reallocated'])}  pending={_fmt(r['pending'])}  "
                   f"uncorr={_fmt(r['uncorrectable'])}  runc={_fmt(r['reported_uncorrect'])}  "
@@ -323,12 +356,12 @@ def cmd_report(cfg: Config, args: argparse.Namespace) -> int:
         if events:
             print("\n=== последние события ===")
             for e in events:
-                print(f"  {e['at']} [{e['severity']}] {e['type']}: {e['message']}")
+                print(f"  {_fmt_time(e['at'])} [{e['severity']}] {e['type']}: {e['message']}")
     return EXIT_CODES[worst]
 
 
 def cmd_devices(cfg: Config, args: argparse.Namespace) -> int:
-    conn = store.connect(cfg.db_path)
+    conn = store.connect(cfg.db_path, read_only=True)
     rows = store.list_devices(conn, present_only=args.present)
     if args.json:
         print(json.dumps([dict(r) for r in rows], ensure_ascii=False, indent=2))
@@ -336,7 +369,8 @@ def cmd_devices(cfg: Config, args: argparse.Namespace) -> int:
     for r in rows:
         flag = "" if r["present"] else " [MISSING]"
         print(f"{r['dev_node']:8} {r['serial'] or '-':22} {r['model'] or '-':30} "
-              f"{r['protocol'] or '-':5} first={r['first_seen']} last={r['last_seen']}{flag}")
+              f"{r['protocol'] or '-':5} first={_fmt_time(r['first_seen'])} "
+              f"last={_fmt_time(r['last_seen'])}{flag}")
     return 0
 
 
@@ -385,8 +419,11 @@ def main(argv: list[str] | None = None) -> int:
     except collector.CollectorError as e:
         print(f"collector error: {e}", file=sys.stderr)
         return 1
-    except FileNotFoundError as e:
+    except (sqlite3.Error, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"error: {type(e).__name__}: {e}", file=sys.stderr)
         return 1
 
 

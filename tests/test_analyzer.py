@@ -53,6 +53,11 @@ class TestAnalyzer(unittest.TestCase):
         self.assertEqual(a.deltas["reallocated"], 24)
         growth_events = [e for e in a.events if e.type == "attr_growth"]
         self.assertTrue(growth_events)
+        grown = {e.message.split(": ", 1)[1].split(" +", 1)[0] for e in growth_events}
+        self.assertIn("reallocated", grown)
+        self.assertIn("pending", grown)
+        self.assertIn("uncorrectable", grown)
+        self.assertIn("reported_uncorrect", grown)
 
     def test_pending_watch(self):
         snap = snap_from("ata_healthy.json")

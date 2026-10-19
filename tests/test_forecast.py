@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from hddmon.forecast import predict_device, predict_trends
+from hddmon.forecast import MIN_R2, predict_device, predict_trends
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -42,6 +42,26 @@ class TestForecast(unittest.TestCase):
         })
         self.assertEqual(len(out), 1)  # flat pending без ETA не попадает
         self.assertEqual(out[0].column, "reallocated")
+
+    def test_custom_target_overrides_default(self):
+        t = predict_trends(series(list(range(10))), "reallocated",
+                           targets={"reallocated": 15})
+        self.assertIsNotNone(t)
+        self.assertEqual(t.r_threshold, 15)
+        self.assertAlmostEqual(t.eta_days, 6.0, delta=0.1)
+
+    def test_noisy_trend_has_no_eta(self):
+        t = predict_trends(series([0, 10, 0, 10, 0, 10, 0, 10]), "reallocated",
+                           targets={"reallocated": 100})
+        self.assertIsNotNone(t)
+        self.assertLess(t.r2, MIN_R2)
+        self.assertIsNone(t.eta_days)
+
+    def test_column_without_target_has_no_eta(self):
+        t = predict_trends(series([0, 1, 2]), "command_timeout")
+        self.assertIsNotNone(t)
+        self.assertIsNone(t.r_threshold)
+        self.assertIsNone(t.eta_days)
 
 
 if __name__ == "__main__":

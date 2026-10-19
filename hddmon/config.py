@@ -25,6 +25,7 @@ class Thresholds:
     reallocated_watch: int = 1
     reallocated_backup_now: int = 20
     uncorrectable_backup_now: int = 5
+    reported_uncorrect_backup_now: int = 50
     grow_pct_per_year_watch: float = 10.0  # рост критичного атрибута, %/год от текущего значения — WATCH
 
 

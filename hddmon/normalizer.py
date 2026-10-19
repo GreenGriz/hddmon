@@ -42,10 +42,10 @@ def _raw_int(raw: Any) -> int | None:
 def _detect_protocol(data: dict) -> str:
     if "nvme" in data:
         return "nvme"
-    if "scsi" in data:
-        return "scsi"
     if "ata_smart_attributes" in data or "ata_smart_data" in data:
         return "ata"
+    if "scsi" in data:
+        return "scsi"
     dev_type = str(_pick(data.get("device", {}), "type") or "").lower()
     if "nvme" in dev_type:
         return "nvme"

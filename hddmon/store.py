@@ -81,8 +81,32 @@ CREATE INDEX IF NOT EXISTS idx_events_at ON events(at);
 """
 
 
-def connect(db_path: str) -> sqlite3.Connection:
+def connect(db_path: str, read_only: bool = False) -> sqlite3.Connection:
     path = Path(db_path)
+    if read_only:
+        if not path.is_file():
+            raise FileNotFoundError(f"БД не найдена: {path}; запусти `hddmon collect`")
+        uri = path.resolve().as_uri()
+        wal = path.with_name(path.name + "-wal")
+        has_wal = wal.is_file() and wal.stat().st_size > 0
+        if has_wal:
+            candidates = [f"{uri}?mode=ro", f"{uri}?mode=ro&immutable=1"]
+        else:
+            candidates = [f"{uri}?mode=ro&immutable=1", f"{uri}?mode=ro"]
+        last_error: sqlite3.Error | None = None
+        for candidate in candidates:
+            conn = None
+            try:
+                conn = sqlite3.connect(candidate, uri=True)
+                conn.row_factory = sqlite3.Row
+                conn.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchone()
+                return conn
+            except sqlite3.Error as e:
+                last_error = e
+                if conn is not None:
+                    conn.close()
+        if last_error is not None:
+            raise last_error
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
@@ -170,7 +194,7 @@ def insert_snapshot(
 
 def get_last_snapshot(conn: sqlite3.Connection, device_id: int) -> sqlite3.Row | None:
     return conn.execute(
-        "SELECT * FROM snapshots WHERE device_id=? ORDER BY taken_at DESC LIMIT 1",
+        "SELECT * FROM snapshots WHERE device_id=? ORDER BY taken_at DESC, id DESC LIMIT 1",
         (device_id,),
     ).fetchone()
 
@@ -183,7 +207,7 @@ def get_history(conn: sqlite3.Connection, device_id: int, days: int | None = Non
         since = iso(utcnow() - timedelta(days=days))
         q += " AND taken_at>=?"
         params.append(since)
-    q += " ORDER BY taken_at DESC LIMIT ?"
+    q += " ORDER BY taken_at DESC, id DESC LIMIT ?"
     params.append(limit)
     return list(conn.execute(q, params))
 
@@ -213,10 +237,17 @@ def latest_snapshots(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ))
 
 
-def mark_missing(conn: sqlite3.Connection, seen_device_ids: Iterable[int]) -> list[sqlite3.Row]:
+def device_id_by_serial(conn: sqlite3.Connection, serial: str) -> int | None:
+    row = conn.execute("SELECT id FROM devices WHERE serial=?", (serial,)).fetchone()
+    return int(row["id"]) if row else None
+
+
+def mark_missing(conn: sqlite3.Connection, seen_device_ids: Iterable[int],
+                 unreadable_nodes: Iterable[str] = ()) -> list[sqlite3.Row]:
     seen = set(seen_device_ids)
+    nodes = set(unreadable_nodes)
     rows = list(conn.execute("SELECT * FROM devices WHERE present=1"))
-    missing = [r for r in rows if r["id"] not in seen]
+    missing = [r for r in rows if r["id"] not in seen and r["dev_node"] not in nodes]
     for r in missing:
         conn.execute("UPDATE devices SET present=0 WHERE id=?", (r["id"],))
     return missing
@@ -231,7 +262,7 @@ def insert_event(conn: sqlite3.Connection, ev: Event) -> int:
 
 
 def recent_events(conn: sqlite3.Connection, limit: int = 50) -> list[sqlite3.Row]:
-    return list(conn.execute("SELECT * FROM events ORDER BY at DESC LIMIT ?", (limit,)))
+    return list(conn.execute("SELECT * FROM events ORDER BY at DESC, id DESC LIMIT ?", (limit,)))
 
 
 def critical_series(conn: sqlite3.Connection, device_id: int, column: str) -> list[tuple[datetime, int]]:
@@ -241,7 +272,8 @@ def critical_series(conn: sqlite3.Connection, device_id: int, column: str) -> li
     if column not in allowed:
         raise ValueError(f"column not allowed: {column}")
     rows = conn.execute(
-        f"SELECT taken_at, {column} AS v FROM snapshots WHERE device_id=? AND {column} IS NOT NULL ORDER BY taken_at",
+        f"SELECT taken_at, {column} AS v FROM snapshots WHERE device_id=? AND {column} IS NOT NULL "
+        f"ORDER BY taken_at, id",
         (device_id,),
     )
     out = []

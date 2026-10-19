@@ -1,3 +1,4 @@
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -67,6 +68,48 @@ class TestStore(unittest.TestCase):
     def test_critical_series_rejects_unknown(self):
         with self.assertRaises(ValueError):
             store.critical_series(self.conn, 1, "model")
+
+    def test_mark_missing_keeps_discovered_but_unreadable_device(self):
+        s = make_snap()
+        did = store.upsert_device(self.conn, s)
+        missing = store.mark_missing(self.conn, [], ["/dev/sda"])
+        self.assertEqual(missing, [])
+        devs = store.list_devices(self.conn)
+        self.assertEqual(devs[0]["present"], 1)
+
+    def test_read_only_connect_sees_data_and_rejects_writes(self):
+        s = make_snap()
+        did = store.upsert_device(self.conn, s)
+        store.insert_snapshot(self.conn, did, s, "OK", 0, [], False)
+        self.conn.commit()
+        self.conn.close()
+        ro = store.connect(str(Path(self.tmp.name) / "t.db"), read_only=True)
+        try:
+            self.assertEqual(len(store.get_history(ro, did)), 1)
+            with self.assertRaises(sqlite3.OperationalError):
+                ro.execute("CREATE TABLE nope(x)")
+        finally:
+            ro.close()
+        self.conn = store.connect(str(Path(self.tmp.name) / "t.db"))
+
+    def test_read_only_connect_does_not_create_db(self):
+        path = Path(self.tmp.name) / "absent.db"
+        with self.assertRaises(FileNotFoundError):
+            store.connect(str(path), read_only=True)
+        self.assertFalse(path.exists())
+
+    def test_read_only_connect_sees_uncheckpointed_wal(self):
+        s = make_snap()
+        did = store.upsert_device(self.conn, s)
+        store.insert_snapshot(self.conn, did, s, "OK", 0, [], False)
+        self.conn.commit()
+        wal = Path(self.tmp.name) / "t.db-wal"
+        self.assertTrue(wal.is_file())
+        ro = store.connect(str(Path(self.tmp.name) / "t.db"), read_only=True)
+        try:
+            self.assertEqual(len(store.get_history(ro, did)), 1)
+        finally:
+            ro.close()
 
 
 if __name__ == "__main__":

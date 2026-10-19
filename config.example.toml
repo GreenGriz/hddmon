@@ -19,6 +19,7 @@ pending_backup_now = 10
 reallocated_watch = 1
 reallocated_backup_now = 20
 uncorrectable_backup_now = 5
+reported_uncorrect_backup_now = 50
 
 [telegram]
 enabled = false

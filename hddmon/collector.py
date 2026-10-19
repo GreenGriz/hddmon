@@ -140,17 +140,23 @@ def _has_any_data(data: dict) -> bool:
     return any(k in data for k in ("ata_smart_attributes", "scsi", "nvme", "smart_status", "model_name"))
 
 
-def collect_all(cfg: Config) -> tuple[list[RawDevice], list[str]]:
-    """Возвращает (успешные снимки, ошибки по устройствам)."""
+def collect_all(cfg: Config) -> tuple[list[RawDevice], list[str], list[str]]:
+    """Возвращает (успешные снимки, ошибки по устройствам, обнаруженные узлы).
+
+    Обнаруженные узлы включают и те, что не удалось прочитать: ошибка чтения
+    не означает, что диск исчез.
+    """
     results: list[RawDevice] = []
     errors: list[str] = []
+    discovered: list[str] = []
     for dev in scan_devices(cfg):
         name = dev.get("name", "")
         hint = dev.get("type")
         if not name:
             continue
+        discovered.append(name)
         try:
             results.append(collect_device(cfg, name, hint))
         except CollectorError as e:
             errors.append(str(e))
-    return results, errors
+    return results, errors, discovered

@@ -38,6 +38,15 @@ class TestNormalizerATA(unittest.TestCase):
         self.assertIn("without error", snap.selftest_status)
         self.assertGreater(len(snap.attributes), 10)
 
+    def test_ata_preferred_when_scsi_block_present(self):
+        data = load("ata_healthy.json")
+        data["scsi"] = {"grown_defects": 7}
+        snap = normalize(RawDevice(dev_node="/dev/sda", type_hint=None, json_data=data,
+                                   smartctl_rc=0, used_type=None))
+        self.assertEqual(snap.device.protocol, "ata")
+        self.assertEqual(snap.reallocated, 0)
+        self.assertEqual(snap.pending, 0)
+
     def test_failing(self):
         snap = normalize(raw("ata_failing.json", "/dev/sdb"))
         self.assertFalse(snap.smart_passed)
