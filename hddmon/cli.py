@@ -1,4 +1,4 @@
-"""CLI: collect / status / history / predict / report / devices."""
+"""CLI: collect / status / smart / history / predict / report / devices."""
 
 from __future__ import annotations
 
@@ -34,6 +34,23 @@ def _fmt_time(value: Any) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone().strftime("%Y-%m-%d %H:%M %Z")
+
+
+def _fmt_size(value: Any) -> str:
+    if not value:
+        return "-"
+    size = float(value)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB", "PiB"):
+        if size < 1024 or unit == "PiB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024
+    return f"{int(value)} B"
+
+
+def _fmt_passed(value: Any) -> str:
+    if value is None:
+        return "-"
+    return "passed" if value else "FAILED"
 
 
 def _snap_from_row(row: Any) -> Snapshot:
@@ -191,6 +208,106 @@ def _resolve_device(conn: Any, ref: str):
         print(f"диск не найден: {ref} (см. `hddmon devices`)", file=sys.stderr)
         return None
     return dev
+
+
+def _fmt_attr_raw(attr: Any) -> str:
+    raw = attr["raw_value"]
+    if raw is None:
+        return "-"
+    # 190/194: smartctl пакует min/max в старшие байты, температура — младший
+    if attr["attr_id"] in (190, 194):
+        return str(raw & 0xFF)
+    return str(raw)
+
+
+def cmd_smart(cfg: Config, args: argparse.Namespace) -> int:
+    conn = store.connect(cfg.db_path, read_only=True)
+    dev = _resolve_device(conn, args.device)
+    if not dev:
+        return 1
+    snap = store.get_last_snapshot(conn, dev["id"])
+    if not snap:
+        print(f"нет снимков для {dev['dev_node']} — запусти `hddmon collect`", file=sys.stderr)
+        return 1
+    attrs = store.get_attributes(conn, snap["id"])
+    reasons = analyzer.reasons_from_row(snap)
+    device_out = {
+        "dev_node": dev["dev_node"],
+        "model": dev["model"],
+        "model_family": dev["model_family"],
+        "serial": dev["serial"],
+        "transport": dev["transport"],
+        "protocol": dev["protocol"],
+        "capacity_bytes": dev["capacity_bytes"],
+        "present": bool(dev["present"]),
+        "first_seen": dev["first_seen"],
+        "last_seen": dev["last_seen"],
+    }
+    snapshot_out = {
+        "taken_at": snap["taken_at"],
+        "verdict": snap["verdict"],
+        "score": snap["score"],
+        "reasons": reasons,
+        "smart_passed": snap["smart_passed"],
+        "temperature": snap["temperature"],
+        "power_on_hours": snap["power_on_hours"],
+        "reallocated": snap["reallocated"],
+        "pending": snap["pending"],
+        "uncorrectable": snap["uncorrectable"],
+        "reported_uncorrect": snap["reported_uncorrect"],
+        "end_to_end_error": snap["end_to_end_error"],
+        "command_timeout": snap["command_timeout"],
+        "load_cycle": snap["load_cycle"],
+        "power_cycle": snap["power_cycle"],
+        "grown_defects": snap["grown_defects"],
+        "selftest_status": snap["selftest_status"],
+        "raw_json": snap["raw_json"] is not None,
+    }
+    if args.json:
+        payload = {
+            "device": device_out,
+            "snapshot": snapshot_out,
+            "attributes": [
+                {
+                    "attr_id": a["attr_id"],
+                    "name": a["name"],
+                    "raw_value": a["raw_value"],
+                    "normalized": a["normalized"],
+                    "worst": a["worst"],
+                    "failed": None if a["failed"] is None else bool(a["failed"]),
+                }
+                for a in attrs
+            ],
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    flag = "" if dev["present"] else " [MISSING]"
+    print(f"{dev['dev_node']}  {dev['model'] or '?'}  serial={_fmt(dev['serial'])}{flag}")
+    print(f"  протокол: {_fmt(dev['protocol'])} ({_fmt(dev['transport'])})  "
+          f"ёмкость: {_fmt_size(dev['capacity_bytes'])}")
+    print(f"  снимок: {_fmt_time(snap['taken_at'])}  "
+          f"вердикт: {snap['verdict'] or '?'} (score={_fmt(snap['score'])})")
+    print(f"  SMART: {_fmt_passed(snap['smart_passed'])}  "
+          f"selftest: {snap['selftest_status'] or '-'}")
+    print(f"  temp={_fmt(snap['temperature'])}C  poh={_fmt(snap['power_on_hours'])}  "
+          f"realloc={_fmt(snap['reallocated'])}  pending={_fmt(snap['pending'])}  "
+          f"uncorr={_fmt(snap['uncorrectable'])}  runc={_fmt(snap['reported_uncorrect'])}")
+    print(f"  e2e={_fmt(snap['end_to_end_error'])}  timeout={_fmt(snap['command_timeout'])}  "
+          f"load_cycle={_fmt(snap['load_cycle'])}  power_cycle={_fmt(snap['power_cycle'])}  "
+          f"grown={_fmt(snap['grown_defects'])}")
+    for reason in reasons:
+        print(f"  ! {reason}")
+    if not attrs:
+        print("\n  атрибуты не сохранены")
+        return 0
+    print(f"\n  {'id':>3}  {'атрибут':<34} {'знач':>4} {'худш':>5} {'raw':>14}  флаг")
+    for a in attrs:
+        failed = "FAILING" if a["failed"] else ""
+        print(f"  {_fmt(a['attr_id']):>3}  {a['name']:<34} "
+              f"{_fmt(a['normalized']):>4} {_fmt(a['worst']):>5} "
+              f"{_fmt_attr_raw(a):>14}  {failed}")
+    return 0
 
 
 def cmd_history(cfg: Config, args: argparse.Namespace) -> int:
@@ -389,6 +506,11 @@ def main(argv: list[str] | None = None) -> int:
     p_status = sub.add_parser("status", help="текущий вердикт по всем дискам")
     p_status.add_argument("--json", action="store_true")
     p_status.set_defaults(func=cmd_status)
+
+    p_smart = sub.add_parser("smart", help="полный SMART последнего снимка диска")
+    p_smart.add_argument("device", help="serial, /dev/узел или model")
+    p_smart.add_argument("--json", action="store_true")
+    p_smart.set_defaults(func=cmd_smart)
 
     p_hist = sub.add_parser("history", help="история снимков по диску")
     p_hist.add_argument("device", help="serial, /dev/узел или model")

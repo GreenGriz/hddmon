@@ -111,7 +111,7 @@ events(id, device_id, at, type, severity, message)
 - Диски: заводятся/заменяются автоматически по серийнику; пропавший диск помечается `present=0`, история сохраняется.
 - Запуск: systemd timer (system — от root, либо user — с sudoers на smartctl); флаг `--store-raw` для raw JSON.
 - Уведомления (опционально, каждый канал независимо): Telegram (bot token + chat_id), email (SMTP). Шлются при переходе в BACKUP_SOON/BACKUP_NOW/REPLACE_NOW, росте критичных атрибутов, исчезновении диска.
-- UI: CLI (status/history/predict/report/devices). Web-интерфейс — возможно позже, не в MVP.
+- UI: CLI (status/smart/history/predict/report/devices). Web-интерфейс — возможно позже, не в MVP.
 - Exit-коды `status`/`report`: 0=OK, 10=WATCH, 20=BACKUP_SOON, 30=BACKUP_NOW, 40=REPLACE_NOW, 1=ошибка.
 
 ## 8. Приёмка

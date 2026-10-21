@@ -199,6 +199,13 @@ def get_last_snapshot(conn: sqlite3.Connection, device_id: int) -> sqlite3.Row |
     ).fetchone()
 
 
+def get_attributes(conn: sqlite3.Connection, snapshot_id: int) -> list[sqlite3.Row]:
+    return list(conn.execute(
+        "SELECT * FROM attributes WHERE snapshot_id=? ORDER BY attr_id IS NULL, attr_id, id",
+        (snapshot_id,),
+    ))
+
+
 def get_history(conn: sqlite3.Connection, device_id: int, days: int | None = None,
                 limit: int = 500) -> list[sqlite3.Row]:
     q = "SELECT * FROM snapshots WHERE device_id=?"

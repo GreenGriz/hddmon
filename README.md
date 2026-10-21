@@ -159,6 +159,7 @@ store_raw_json = false
 |---|---|
 | `hddmon collect` | снять SMART со всех дисков и записать снимок |
 | `hddmon status` | текущие вердикты и причины |
+| `hddmon smart <serial>` | полный SMART последнего снимка: все атрибуты, raw-значения |
 | `hddmon history <serial>` | история снимков по диску |
 | `hddmon predict` | тренды и ETA по критичным атрибутам |
 | `hddmon report` | статус + прогноз + последние события |

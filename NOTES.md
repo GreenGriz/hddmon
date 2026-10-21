@@ -85,6 +85,7 @@ python3 -m hddmon status   # должно видеть данные из /var/li
 ```bash
 python3 -m hddmon status          # вердикты
 python3 -m hddmon status --json
+python3 -m hddmon smart Z1W6366E  # все атрибуты последнего снимка
 python3 -m hddmon history Z1W6366E   # история по серийнику
 python3 -m hddmon predict
 python3 -m hddmon report          # status + прогноз + события
@@ -230,3 +231,13 @@ python3 -m hddmon devices
 - `status`/`report`: sda OK, sdb/sdc/sdd WATCH только по наработке; все realloc/pending/uncorr = 0. `predict`: роста критичных атрибутов нет — ETA не строится, что корректно.
 - Пункт 13 плана (накопить историю и проверить дельты/прогноз на реальных данных) можно считать выполненным: дельты и read-only просмотр работают на живой БД.
 - Остаток бэклога без изменений: ретенция raw_json (90 дней), предупреждения о неизвестных ключах конфига, тесты `notify`, пересмотр схемы «root-сервис + общая БД в /var/lib», выбор лицензии.
+
+## v0.3.0 (2026-10-21) — команда `smart`
+
+- Добавлена `hddmon smart <serial|/dev|model> [--json]`: показывает полный SMART последнего снимка диска из БД, без вызова smartctl.
+- Human-вывод: устройство (модель, серийник, протокол, ёмкость), снимок/вердикт/причины, ключевые поля (temp, poh, realloc, pending, uncorr, runc, e2e, timeout, load/power cycle, grown), затем таблица всех сохранённых атрибутов: id, имя, normalized, worst, raw, FAILING.
+- `--json`: `{device, snapshot, attributes}` — удобно для скриптов.
+- Особенность: у атрибутов 190/194 smartctl пакует min/max в старшие байты raw; в human-выводе показывается младший байт (текущая температура).
+- Новое: `store.get_attributes()`; версия 0.3.0; README/SPEC обновлены.
+- Тесты: +4 (всего 45/45), включая read-only `smart` и SCSI-атрибуты.
+- Ограничение: показываются только сохранённые поля; raw-строка атрибута (например, «34 (Min/Max 16/45)») не хранится — при необходимости добавить колонку и миграцию схемы.

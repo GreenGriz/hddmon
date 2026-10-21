@@ -84,6 +84,35 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("WD-WCC3FANSP1TD", out)
 
+    def test_smart(self):
+        self.run_cli("collect")
+        code, out, _ = self.run_cli("smart", "WD-WCC3FANSP1TD")
+        self.assertEqual(code, 0)
+        self.assertIn("/dev/sda", out)
+        self.assertIn("Reallocated_Sector_Ct", out)
+        self.assertIn("SMART: passed", out)
+
+        code, out, _ = self.run_cli("smart", "WD-WCC3FANSP1TD", "--json")
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(data["device"]["serial"], "WD-WCC3FANSP1TD")
+        self.assertEqual(data["snapshot"]["verdict"], "OK")
+        by_id = {a["attr_id"]: a for a in data["attributes"] if a["attr_id"] is not None}
+        self.assertEqual(by_id[5]["name"], "Reallocated_Sector_Ct")
+
+    def test_smart_scsi_attributes(self):
+        self.run_cli("collect")
+        code, out, _ = self.run_cli("smart", "MN1220F32JARWD")
+        self.assertEqual(code, 0)
+        self.assertIn("grown_defects", out)
+
+    def test_smart_unknown_device(self):
+        self.run_cli("collect")
+        err = io.StringIO()
+        with redirect_stderr(err):
+            code, _, _ = self.run_cli("smart", "NOPE")
+        self.assertEqual(code, 1)
+
     def test_report_json(self):
         self.run_cli("collect")
         code, out, _ = self.run_cli("report", "--json")
@@ -167,6 +196,9 @@ class TestCLI(unittest.TestCase):
             code, out, _ = self.run_cli("report", "--json")
             self.assertEqual(code, 40)
             self.assertEqual(len(json.loads(out)["devices"]), 4)
+            code, out, _ = self.run_cli("smart", "WD-WCC3FANSP1TD")
+            self.assertEqual(code, 0)
+            self.assertIn("Reallocated_Sector_Ct", out)
         finally:
             Path(self.tmp.name).chmod(0o755)
             db.chmod(0o644)

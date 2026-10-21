@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from hddmon.models import DeviceInfo, Snapshot
+from hddmon.models import Attribute, DeviceInfo, Snapshot
 from hddmon import store
 
 
@@ -55,6 +55,18 @@ class TestStore(unittest.TestCase):
         self.assertEqual(len(missing), 1)
         devs = store.list_devices(self.conn)
         self.assertEqual(devs[0]["present"], 0)
+
+    def test_get_attributes_orders_by_attr_id(self):
+        attrs = [
+            Attribute(5, "Reallocated_Sector_Ct", raw_value=0, normalized=100, worst=100, failed=False),
+            Attribute(1, "Raw_Read_Error_Rate", raw_value=3, normalized=90, worst=80, failed=False),
+        ]
+        s = make_snap(attributes=attrs)
+        did = store.upsert_device(self.conn, s)
+        sid = store.insert_snapshot(self.conn, did, s, "OK", 0, [], False)
+        rows = store.get_attributes(self.conn, sid)
+        self.assertEqual([r["attr_id"] for r in rows], [1, 5])
+        self.assertEqual(rows[1]["name"], "Reallocated_Sector_Ct")
 
     def test_critical_series(self):
         t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
