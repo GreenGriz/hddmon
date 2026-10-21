@@ -106,6 +106,28 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("grown_defects", out)
 
+    def test_smart_explain(self):
+        self.run_cli("collect")
+        code, out, _ = self.run_cli("smart", "Z1W6366E", "--explain")
+        self.assertEqual(code, 0)
+        self.assertIn("Критические параметры SMART", out)
+        self.assertIn("197 Current_Pending_Sector", out)
+        self.assertIn("когда волноваться", out)
+
+        code, out, _ = self.run_cli("smart", "Z1W6366E", "--json", "--explain")
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        keys = {e["key"] for e in data["explanations"]}
+        self.assertIn("reallocated", keys)
+        self.assertIn("selftest", keys)
+
+    def test_smart_explain_grows_with_attributes(self):
+        self.run_cli("collect")
+        _, out, _ = self.run_cli("smart", "Z1W6366E", "--explain")
+        self.assertIn("184 End-to-End_Error", out)
+        self.assertIn("187 Reported_Uncorrect", out)
+        self.assertGreaterEqual(out.count("когда волноваться:"), 10)
+
     def test_smart_unknown_device(self):
         self.run_cli("collect")
         err = io.StringIO()

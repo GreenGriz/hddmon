@@ -6,10 +6,11 @@ import argparse
 import json
 import sqlite3
 import sys
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
-from . import __version__, analyzer, collector, forecast, normalizer, notify, store
+from . import __version__, analyzer, collector, forecast, guide, normalizer, notify, store
 from .config import Config, load_config
 from .models import EXIT_CODES, Event, Snapshot, Verdict, iso
 
@@ -231,6 +232,12 @@ def cmd_smart(cfg: Config, args: argparse.Namespace) -> int:
         return 1
     attrs = store.get_attributes(conn, snap["id"])
     reasons = analyzer.reasons_from_row(snap)
+    help_items: list[guide.ParamHelp] = []
+    if args.explain:
+        help_items = guide.critical_help(dev["protocol"], cfg.thresholds)
+        if dev["protocol"] == "ata":
+            present = {a["attr_id"] for a in attrs if a["attr_id"] is not None}
+            help_items = [h for h in help_items if h.attr_id is None or h.attr_id in present]
     device_out = {
         "dev_node": dev["dev_node"],
         "model": dev["model"],
@@ -278,6 +285,7 @@ def cmd_smart(cfg: Config, args: argparse.Namespace) -> int:
                 }
                 for a in attrs
             ],
+            "explanations": [asdict(h) for h in help_items],
         }
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
@@ -300,13 +308,23 @@ def cmd_smart(cfg: Config, args: argparse.Namespace) -> int:
         print(f"  ! {reason}")
     if not attrs:
         print("\n  атрибуты не сохранены")
-        return 0
-    print(f"\n  {'id':>3}  {'атрибут':<34} {'знач':>4} {'худш':>5} {'raw':>14}  флаг")
-    for a in attrs:
-        failed = "FAILING" if a["failed"] else ""
-        print(f"  {_fmt(a['attr_id']):>3}  {a['name']:<34} "
-              f"{_fmt(a['normalized']):>4} {_fmt(a['worst']):>5} "
-              f"{_fmt_attr_raw(a):>14}  {failed}")
+    else:
+        print(f"\n  {'id':>3}  {'атрибут':<34} {'знач':>4} {'худш':>5} {'raw':>14}  флаг")
+        for a in attrs:
+            failed = "FAILING" if a["failed"] else ""
+            print(f"  {_fmt(a['attr_id']):>3}  {a['name']:<34} "
+                  f"{_fmt(a['normalized']):>4} {_fmt(a['worst']):>5} "
+                  f"{_fmt_attr_raw(a):>14}  {failed}")
+    if help_items:
+        print("\n  Критические параметры SMART:")
+        for h in help_items:
+            print(f"\n  {h.title}")
+            print(f"    что это:            {h.what}")
+            print(f"    что показывает:     {h.shows}")
+            print(f"    почему важно:       {h.why}")
+            print(f"    когда волноваться:  {h.worry}")
+    else:
+        print("\n  подсказка: `hddmon smart <диск> --explain` — описание критических параметров")
     return 0
 
 
@@ -509,6 +527,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p_smart = sub.add_parser("smart", help="полный SMART последнего снимка диска")
     p_smart.add_argument("device", help="serial, /dev/узел или model")
+    p_smart.add_argument("-e", "--explain", action="store_true",
+                         help="добавить описание критических параметров")
     p_smart.add_argument("--json", action="store_true")
     p_smart.set_defaults(func=cmd_smart)
 

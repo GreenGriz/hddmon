@@ -12,7 +12,8 @@
 - Прогноз по линейной регрессии с оценкой качества `r²`.
 - Опциональные уведомления Telegram и email.
 
-Подробности: [SPEC.md](SPEC.md) и [NOTES.md](NOTES.md).
+Подробности: [SPEC.md](SPEC.md), [NOTES.md](NOTES.md) и [SMART.md](SMART.md) —
+справочник по критическим параметрам SMART.
 
 ## Требования
 
@@ -160,6 +161,7 @@ store_raw_json = false
 | `hddmon collect` | снять SMART со всех дисков и записать снимок |
 | `hddmon status` | текущие вердикты и причины |
 | `hddmon smart <serial>` | полный SMART последнего снимка: все атрибуты, raw-значения |
+| `hddmon smart <serial> --explain` | то же + описание критических параметров |
 | `hddmon history <serial>` | история снимков по диску |
 | `hddmon predict` | тренды и ETA по критичным атрибутам |
 | `hddmon report` | статус + прогноз + последние события |
@@ -170,6 +172,27 @@ store_raw_json = false
 
 Exit-коды `status`/`report`/`collect`: `0` — OK, `10` — WATCH,
 `20` — BACKUP_SOON, `30` — BACKUP_NOW, `40` — REPLACE_NOW, `1` — ошибка.
+
+## Критические параметры SMART
+
+Подробный справочник — [SMART.md](SMART.md): что показывает параметр, почему он
+важен и при каких значениях пора беспокоиться. В терминале те же описания
+доступны по команде:
+
+```bash
+hddmon smart <serial> --explain
+```
+
+`hddmon` считает критическими:
+
+- **ATA:** 5, 197, 198, 187 (дефекты поверхности), 184 и 188 (внутренние ошибки
+  и таймауты), 199 (SATA-линк), 9 и 193 (износ механики), 194 (температура),
+  overall-health и self-test;
+- **SCSI:** `grown_defects` и ошибки read/write/verify;
+- **NVMe:** `critical_warning`, `media_errors`, `available_spare`,
+  `percentage_used`.
+
+Пороги берутся из секции `[thresholds]` конфига и подставляются в описания.
 
 ## Уведомления
 
