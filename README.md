@@ -210,6 +210,10 @@ python3 -m unittest discover -s tests
 
 Запуск без установки: `python3 -m hddmon --help`.
 
+## Лицензия
+
+Проект распространяется по лицензии [MIT](LICENSE).
+
 ## Частые проблемы
 
 - **`hddmon: command not found`** — добавьте `~/.local/bin` в `PATH`

@@ -8,10 +8,12 @@ version = "0.4.0"
 description = "Мониторинг и прогноз состояния HDD по SMART"
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
 authors = [{ name = "GreenGriz" }]
 keywords = ["smart", "hdd", "ssd", "smartctl", "monitoring", "disk-health"]
 classifiers = [
     "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
