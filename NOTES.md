@@ -271,3 +271,9 @@ python3 -m hddmon devices
 - Добавлен `tests/test_notify.py` (19 тестов) + 2 CLI-теста: отключённые каналы, неполный конфиг, формирование письма/Telegram-payload, STARTTLS/SSL, env-пароль, фильтр severity, независимость ошибок каналов, `notify_test`. Всего тестов 73/73.
 - README/config.example: пример Яндекс.Почты (`smtp.yandex.ru`, 465, `use_ssl`), описание `notify-test`.
 - Для живой отправки на `greengriz@yandex.ru` осталось добавить в `/etc/hddmon/config.toml` пароль приложения (или `HDDMON_SMTP_PASSWORD` в systemd EnvironmentFile): прав на запись в `/etc` у агента нет.
+
+## Email настроен (2026-10-29)
+
+- В `/etc/hddmon/config.toml` добавлена секция `[email]`: `smtp.yandex.ru:465`, `use_ssl = true`, `starttls = false`, from/to — `greengriz@yandex.ru`, пароль приложения задан. Пароль в репозиторий не попадает.
+- `hddmon notify-test` пока не запускался: по документации Яндекса пароль приложения начинает действовать через 2–3 часа; живая проверка запланирована на утро 30.10.
+- Безопасность: файл сейчас `644 root:root`, то есть пароль читают все локальные пользователи. Сузить доступ: `sudo chown root:biggriz /etc/hddmon/config.toml && sudo chmod 640 /etc/hddmon/config.toml`.
