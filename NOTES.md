@@ -263,3 +263,11 @@ python3 -m hddmon devices
 
 - Выбрана MIT. Добавлены `LICENSE` (Copyright (c) 2026 GreenGriz), `license = { text = "MIT" }` и classifier в `pyproject.toml`, раздел «Лицензия» в README.
 - `LICENSE` попадает в wheel автоматически (проверено сборкой). Версия не менялась — это не функциональное изменение.
+
+## v0.5.0 (2026-10-29) — notify-test, SMTP_SSL и тесты notify
+
+- Добавлена команда `hddmon notify-test [--json]`: отправляет тестовое сообщение во все включённые каналы и возвращает `1`, если хотя бы один канал не ответил. Без включённых каналов — понятная ошибка.
+- Email: поддержка `SMTP_SSL` (`use_ssl = true`, обычно порт 465) в дополнение к STARTTLS; пароль можно задать через `HDDMON_SMTP_PASSWORD` вместо конфига. При включённом канале с неполными настройками теперь явная ошибка, а не молчаливый пропуск.
+- Добавлен `tests/test_notify.py` (19 тестов) + 2 CLI-теста: отключённые каналы, неполный конфиг, формирование письма/Telegram-payload, STARTTLS/SSL, env-пароль, фильтр severity, независимость ошибок каналов, `notify_test`. Всего тестов 73/73.
+- README/config.example: пример Яндекс.Почты (`smtp.yandex.ru`, 465, `use_ssl`), описание `notify-test`.
+- Для живой отправки на `greengriz@yandex.ru` осталось добавить в `/etc/hddmon/config.toml` пароль приложения (или `HDDMON_SMTP_PASSWORD` в systemd EnvironmentFile): прав на запись в `/etc` у агента нет.

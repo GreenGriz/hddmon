@@ -31,7 +31,11 @@ enabled = false
 smtp_host = "smtp.example.com"
 smtp_port = 587
 starttls = true
+# use_ssl = true          # для SMTP_SSL, обычно вместе с портом 465
 # username = "user@example.com"
-# password = "..."
+# password = "..."        # лучше задать HDDMON_SMTP_PASSWORD в окружении
 from_addr = "hddmon@example.com"
 to_addrs = ["admin@example.com"]
+
+# Яндекс.Почта: smtp.yandex.ru, smtp_port = 465, use_ssl = true,
+# starttls = false; пароль — пароль приложения, а не основной пароль аккаунта.

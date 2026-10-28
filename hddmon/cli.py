@@ -1,4 +1,4 @@
-"""CLI: collect / status / smart / history / predict / report / devices."""
+"""CLI: collect / status / smart / history / predict / report / devices / notify-test."""
 
 from __future__ import annotations
 
@@ -509,6 +509,22 @@ def cmd_devices(cfg: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_notify_test(cfg: Config, args: argparse.Namespace) -> int:
+    if not cfg.telegram.enabled and not cfg.email.enabled:
+        print("нет включённых каналов: задайте [telegram] или [email] в конфиге", file=sys.stderr)
+        return 1
+    results = notify.notify_test(cfg)
+    if args.json:
+        print(json.dumps([asdict(r) for r in results], ensure_ascii=False, indent=2))
+    else:
+        for r in results:
+            if r.ok:
+                print(f"{r.channel}: отправлено")
+            else:
+                print(f"{r.channel}: ошибка: {r.error}", file=sys.stderr)
+    return 0 if results and all(r.ok for r in results) else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="hddmon", description="Мониторинг и прогноз состояния HDD")
     parser.add_argument("--version", action="version", version=f"hddmon {__version__}")
@@ -551,6 +567,10 @@ def main(argv: list[str] | None = None) -> int:
     p_dev.add_argument("--present", action="store_true", help="только подключённые")
     p_dev.add_argument("--json", action="store_true")
     p_dev.set_defaults(func=cmd_devices)
+
+    p_notify = sub.add_parser("notify-test", help="отправить тестовое уведомление")
+    p_notify.add_argument("--json", action="store_true")
+    p_notify.set_defaults(func=cmd_notify_test)
 
     args = parser.parse_args(argv)
     cfg = load_config(args.config)

@@ -42,6 +42,7 @@ class EmailConfig:
     smtp_host: str = ""
     smtp_port: int = 587
     starttls: bool = True
+    use_ssl: bool = False  # true для SMTP_SSL, обычно порт 465
     username: str = ""
     password: str = ""
     from_addr: str = ""

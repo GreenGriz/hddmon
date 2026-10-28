@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from hddmon import cli
 from hddmon.collector import RawDevice
+from hddmon.notify import DeliveryResult
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -230,6 +231,30 @@ class TestCLI(unittest.TestCase):
         value = "2026-01-01T00:00:00+00:00"
         expected = datetime.fromisoformat(value).astimezone().strftime("%Y-%m-%d %H:%M %Z")
         self.assertEqual(cli._fmt_time(value), expected)
+
+    def test_notify_test_requires_enabled_channel(self):
+        cfg = Path(self.tmp.name) / "empty.toml"
+        cfg.write_text("")
+        code, _, err = self.run_cli("-c", str(cfg), "notify-test")
+        self.assertEqual(code, 1)
+        self.assertIn("нет включённых каналов", err)
+
+    def test_notify_test_reports_success(self):
+        cfg = Path(self.tmp.name) / "email.toml"
+        cfg.write_text(
+            'db_path = "' + self.db + '"\n'
+            "[email]\n"
+            "enabled = true\n"
+            'smtp_host = "smtp.example.com"\n'
+            'to_addrs = ["admin@example.com"]\n'
+        )
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch("hddmon.notify.notify_test",
+                        return_value=[DeliveryResult("email", True)]), \
+             redirect_stdout(out), redirect_stderr(err):
+            code = cli.main(["-c", str(cfg), "notify-test"])
+        self.assertEqual(code, 0)
+        self.assertIn("email: отправлено", out.getvalue())
 
 
 if __name__ == "__main__":
